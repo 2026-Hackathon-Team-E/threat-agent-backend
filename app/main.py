@@ -15,7 +15,7 @@ import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from app import config, pipeline, sbom
+from app import card_view, config, pipeline, sbom
 from app.collectors import github, kev, news
 from app.store import Store
 from app.types import Event, Service
@@ -219,7 +219,8 @@ _CARD_LIST_FIELDS = ("key", "ids", "sources", "title", "kev", "ransomware", "eps
 
 @app.get("/cards")
 def list_cards():
-    return [{k: c.get(k) for k in _CARD_LIST_FIELDS} for c in S.store.all_cards()]
+    impacts = S.store.all_impacts()
+    return [card_view.build(c, impacts, _CARD_LIST_FIELDS) for c in S.store.all_cards()]
 
 
 @app.get("/cards/{key}")
