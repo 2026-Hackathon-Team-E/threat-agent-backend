@@ -92,7 +92,8 @@ def test_propose_workaround_and_manual(monkeypatch, tmp_path: Path):
     assert rem_wa["text"] == "JNDI lookup 비활성화"
     assert rem_wa["diff"] is None
 
-    npm_dep = next(d for d in svc["deps"] if d["source"] is None)
+    # services.json에는 source가 null인 의존성이 없으므로 테스트 안에서 직접 만든다 (sbom/ 원본은 수정하지 않음)
+    npm_dep = {"ecosystem": "npm", "name": "lodash", "version": "4.17.20", "source": None}
     rem_manual = propose(svc, npm_dep, card, fixed="4.17.21", workspace=tmp_path)
     assert rem_manual["kind"] == "manual"
     assert rem_manual["diff"] is None
