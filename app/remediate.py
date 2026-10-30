@@ -1,25 +1,19 @@
+"""매니페스트 버전 수정 및 완화 조치 제안. 담당: E soobin7131.
+
+의존: app.sbom (같은 담당). 원본 sbom/은 읽기만 하고 수정본은 workspace/에 기록한다.
+"""
 from __future__ import annotations
 
 import difflib
 import re
 from pathlib import Path
-from typing import Any
 
-try:
-    from app.types import Dep, Remediation, Service, ThreatCard
-except ImportError:
-    Dep = dict[str, Any]
-    Remediation = dict[str, Any]
-    Service = dict[str, Any]
-    ThreatCard = dict[str, Any]
-
-from app.sbom import DEP_BLOCK_RE, SBOM_DIR, WORKSPACE_DIR, active_path
+from app.sbom import DEP_BLOCK_RE, WORKSPACE_DIR, active_path
+from app.types import Dep, Remediation, Service, ThreatCard
 
 
 def bump_manifest(fname: str, text: str, name: str, fixed: str) -> str:
-    """
-    지정된 의존성 버전만 fixed로 교체하고, 나머지 줄·주석·들여쓰기·줄바꿈은 원본 그대로 유지합니다.
-    """
+    """대상 의존성의 버전이 적힌 줄만 수정하고 나머지 줄은 원본 그대로 유지한다."""
     base_fname = Path(fname).name
 
     if base_fname == "requirements.txt":
@@ -55,13 +49,10 @@ def propose(
     dep: Dep,
     card: ThreatCard,
     fixed: str | None,
-    workspace: Path | str | None = None,
+    workspace: Path | None = None,
 ) -> Remediation:
-    """
-    CONTRACT.md 5장 및 8.2절 규격에 따른 Remediation 생성:
-    - source가 없으면(null): kind = "manual"
-    - fixed가 있으면: workspace/<svc_name>/<source>에 사본 작성 후 kind = "bump" 및 unified diff 반환
-    - fixed가 없으면: kind = "workaround" 및 권고 문구 반환
+    """패치가 있으면 workspace/<서비스>/에 사본을 쓰고 unified diff를 반환한다.
+    패치가 없으면 workaround, source가 없으면 manual을 반환한다.
     """
     svc_name = svc["name"]
     dep_name = dep["name"]
@@ -69,46 +60,44 @@ def propose(
     source = dep.get("source")
     workaround_msg = (card or {}).get("workaround") or ""
 
-    # 1. 매니페스트 source가 없는 의존성 (예: source: null 인 npm lodash)
+    # 1. source가 없으면 manual
     if not source:
-        text = workaround_msg or f"{dep_name} ({installed}): 매니페스트 파일이 없어 수동 조치가 필요합니다."
         return {
             "kind": "manual",
-            "text": text,
+            "text": workaround_msg or f"{dep_name} ({installed}): 매니페스트(source)가 없어 수동 조치가 필요합니다.",
             "diff": None,
         }
 
-    # 2. 패치 버전이 없는 경우 -> workaround 제안
+    # 2. 패치 버전(fixed)이 없으면 workaround
     if not fixed:
-        text = workaround_msg or f"{dep_name} ({installed}): 패치 버전이 없으므로 임시 완화 조치를 적용하세요."
         return {
             "kind": "workaround",
-            "text": text,
+            "text": workaround_msg or f"{dep_name} ({installed}): 패치 버전이 없으므로 임시 완화 조치를 적용하세요.",
             "diff": None,
         }
 
-    # 3. 패치 버전(fixed)이 있는 경우 -> workspace 사본 저장 및 unified diff 생성
+    # 3. 패치 버전이 있으면 workspace/<서비스>/에 사본 저장 및 unified diff 생성
     ws_root = Path(workspace) if workspace is not None else WORKSPACE_DIR
 
-    # 현재 매니페스트 경로 확인 (manifest_paths 우선, 없으면 active_path)
     manifest_paths = svc.get("manifest_paths") or {}
-    if source in manifest_paths and Path(manifest_paths[source]).exists():
+    ws_candidate = ws_root / svc_name / source
+    if ws_candidate.exists():
+        src_path = ws_candidate
+    elif source in manifest_paths and Path(manifest_paths[source]).exists():
         src_path = Path(manifest_paths[source])
     else:
-        src_path = active_path(svc_name, source, workspace=ws_root)
+        src_path = active_path(svc_name, source)
 
     old_text = src_path.read_text(encoding="utf-8")
     new_text = bump_manifest(source, old_text, dep_name, fixed)
 
-    # workspace/<서비스>/<매니페스트>에 사본 기록 (원본 sbom/은 절대 건드리지 않음)
-    target_dir = ws_root / svc_name
-    target_dir.mkdir(parents=True, exist_ok=True)
-    target_file = target_dir / source
-    target_file.write_text(new_text, encoding="utf-8")
+    out_dir = ws_root / svc_name
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_file = out_dir / source
+    out_file.write_text(new_text, encoding="utf-8")
 
-    # 서비스 객체의 manifest_paths가 최신 워크스페이스 사본을 가리키도록 갱신
     if "manifest_paths" in svc and isinstance(svc["manifest_paths"], dict):
-        svc["manifest_paths"][source] = str(target_file.resolve())
+        svc["manifest_paths"][source] = str(out_file)
 
     diff_text = "".join(
         difflib.unified_diff(
