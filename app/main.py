@@ -199,17 +199,18 @@ async def replay(cve: str):
     if cve in DEMO_EVENTS:  # 오프라인 데모 우선
         await emit(json.loads(json.dumps(DEMO_EVENTS[cve])))  # 깊은 복사
         return {"queued": cve}
+    # 업스트림(KEV) 조회 실패는 404가 아니라 503으로 알린다. 화면에서 "KEV에 없는 CVE"로 오인하지 않도록.
     try:
         r = await S.http.get(kev.KEV_URL)
         r.raise_for_status()
-        for v in r.json().get("vulnerabilities", []):
-            if v.get("cveID", "").upper() == cve:
-                await emit(kev.kev_event(v))
-                return {"queued": cve}
-    except HTTPException:
-        raise
+        vulnerabilities = r.json().get("vulnerabilities", [])
     except Exception as e:  # noqa: BLE001
         log.warning("KEV 조회 실패: %r", e)
+        raise HTTPException(503, "KEV 조회에 실패했습니다. 잠시 후 다시 시도하세요.")
+    for v in vulnerabilities:
+        if v.get("cveID", "").upper() == cve:
+            await emit(kev.kev_event(v))
+            return {"queued": cve}
     raise HTTPException(404, f"KEV에서 찾을 수 없음: {cve}")
 
 
