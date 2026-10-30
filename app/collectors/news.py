@@ -25,6 +25,8 @@ _CVE_RE = re.compile(CVE_PATTERN, re.IGNORECASE)
 MAX_ENTRIES_PER_FEED = 30
 
 
+# [계획, 미구현] 추출 단계: 기사에서 제품 이름·영향 버전을 LLM으로 뽑고,
+# 원문에 근거가 있는 것만 매칭 단계로 넘길 예정. 현재는 CVE 번호만 정규식으로 추출한다.
 def extract_cves(text: str) -> list[str]:
     """대문자로 정규화한 CVE 목록 (중복 제거, 정렬)."""
     return sorted({m.upper() for m in _CVE_RE.findall(text or "")})
