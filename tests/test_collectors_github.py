@@ -121,6 +121,29 @@ def test_advisory_event_maps_affected_and_ids():
     assert ev["fields"]["cvss"] == 10.0
 
 
+def test_advisory_event_accepts_string_first_patched_version_as_real_api_returns():
+    # 실제 REST API 응답: first_patched_version 이 문자열이다 (라이브 실행에서 발견한 버그)
+    a = {
+        "ghsa_id": "GHSA-XXXX-YYYY-ZZZZ",
+        "cve_id": "CVE-2024-0002",
+        "vulnerabilities": [
+            {
+                "package": {"ecosystem": "pip", "name": "requests"},
+                "vulnerable_version_range": "< 2.32.0",
+                "first_patched_version": "2.32.0",
+            },
+            {
+                "package": {"ecosystem": "npm", "name": "lodash"},
+                "vulnerable_version_range": "< 4.17.21",
+                "first_patched_version": None,
+            },
+        ],
+    }
+    affected = github.advisory_event(a, "GitHub Advisory")["fields"]["affected"]
+    assert affected[0]["fixed_versions"] == ["2.32.0"]
+    assert affected[1]["fixed_versions"] == []
+
+
 def test_advisory_event_falls_back_to_ghsa_when_no_cve():
     ev = github.advisory_event({"ghsa_id": "ghsa-aaaa-bbbb-cccc"}, "GitHub Advisory")
     assert ev["ids"] == ["GHSA-AAAA-BBBB-CCCC"]

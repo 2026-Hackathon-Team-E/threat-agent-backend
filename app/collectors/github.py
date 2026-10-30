@@ -66,7 +66,12 @@ def _affected_list(a: dict, source: str) -> list[Affected]:
             except ValueError as exc:
                 log.warning("범위 해석 실패 %s %s: %s", name, spec, exc)
                 continue
-        patched = (vuln.get("first_patched_version") or {}).get("identifier")
+        # REST API는 문자열, 일부 웹훅 본문은 {"identifier": ...} 객체로 준다. 둘 다 받는다.
+        raw_patched = vuln.get("first_patched_version")
+        if isinstance(raw_patched, dict):
+            patched = raw_patched.get("identifier")
+        else:
+            patched = raw_patched or None
         out.append(
             {
                 "ecosystem": ecosystem,
