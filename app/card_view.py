@@ -23,8 +23,8 @@ def summary_ko(card: dict) -> str:
     if (card.get("epss") or 0) >= 0.5:
         return "곧 공격에 쓰일 가능성이 높은 취약점입니다."
     if card.get("status") == "확정":
-        return "취약한 패키지 버전이 확인된 취약점입니다."
-    return "뉴스로 보고됐고, 영향 범위는 아직 확인되지 않았습니다."
+        return "우리가 쓰는 패키지의 취약 버전이 확인됐습니다."
+    return "취약 범위가 아직 확인되지 않은 보고입니다."
 
 
 def products(card: dict, limit: int = 3) -> list[str]:

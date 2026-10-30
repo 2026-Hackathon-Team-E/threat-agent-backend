@@ -23,12 +23,12 @@ def test_high_epss_without_kev_is_high():
 def test_low_signal_news_only_card_is_normal_and_says_unconfirmed():
     card = {"kev": False, "epss": None, "status": "미확정"}
     assert risk_label(card) == "보통"
-    assert "확인되지 않았습니다" in summary_ko(card)
+    assert "아직 확인되지 않은" in summary_ko(card)
 
 
 def test_confirmed_package_without_kev_mentions_vulnerable_version():
     card = {"kev": False, "epss": 0.01, "status": "확정"}
-    assert "취약한 패키지 버전" in summary_ko(card)
+    assert "취약 버전이 확인됐습니다" in summary_ko(card)
 
 
 def test_products_use_short_names_and_dedupe():
