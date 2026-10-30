@@ -16,6 +16,8 @@ def risk_label(card: dict) -> str:
 
 def summary_ko(card: dict) -> str:
     """영문 제목 대신 읽을 수 있는 한 줄 설명."""
+    if str(card.get("key", "")).startswith("NEWS:"):
+        return "뉴스"
     if card.get("ransomware"):
         return "랜섬웨어 공격에 실제로 쓰인 취약점입니다."
     if card.get("kev"):

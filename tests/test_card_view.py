@@ -52,3 +52,8 @@ def test_build_lists_only_services_with_impacts_for_this_card():
     assert out["epss_percent"] == 97.0
     assert out["risk_label"] == "긴급"
     assert out["key"] == "CVE-2021-44228"
+
+
+def test_news_card_is_labeled_plainly():
+    card = {"key": "NEWS:EAAA83E33FA", "kev": False, "epss": None, "status": "미확정"}
+    assert summary_ko(card) == "뉴스"
