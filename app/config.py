@@ -36,6 +36,8 @@ NEWS_FEEDS = [
     "https://www.theregister.com/security/headlines.atom",
     "https://krebsonsecurity.com/feed/",
     "https://www.php.net/feed.atom",  # PHP 공식 뉴스 (CVE 포함 기사만 수집됨)
+    "http://feeds.feedburner.com/GoogleOnlineSecurityBlog",  # Google 보안 블로그
+    "https://www.dailysecu.com/rss/allArticle.xml",  # 데일리시큐 (국내 보안 뉴스)
 ]
 
 # 로컬 Ollama (한국어 설명 요약). 서버가 없으면 빈 값으로 두면 번역을 건너뛴다.
