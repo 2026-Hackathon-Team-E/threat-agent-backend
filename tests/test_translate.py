@@ -63,3 +63,29 @@ def test_long_input_is_truncated():
     run(translate_ko(http, "a" * 5000, "http://localhost:11434", "m", max_chars=100))
     prompt = http.calls[0][1]["json"]["prompt"]
     assert prompt.endswith("a" * 100)
+
+
+from app import translate as _tr
+
+
+def test_clean_rejects_chinese_or_japanese_mixed_output():
+    assert _tr._clean("Vapor Panda利用ARTEX攻击200多家") is None
+    assert _tr._clean("Syrian黑客致1360亿美元股市暴跌") is None
+
+
+def test_clean_rejects_latin_dominant_output():
+    assert _tr._clean("GitLab critical flaw exploited in the wild") is None
+
+
+def test_clean_keeps_korean_sentence():
+    assert _tr._clean('"GitLab 치명적 취약점, 실제 공격에 악용 확인"') == "GitLab 치명적 취약점, 실제 공격에 악용 확인"
+
+
+def test_headline_too_long_returns_none():
+    http = FakeHttp(FakeResponse(200, {"response": "가" * 50}))
+    assert run(_tr.headline_ko(http, "t", "s", "http://localhost:11434", "m")) is None
+
+
+def test_headline_chinese_returns_none():
+    http = FakeHttp(FakeResponse(200, {"response": "Binance 安全事件"}))
+    assert run(_tr.headline_ko(http, "t", "s", "http://localhost:11434", "m")) is None
