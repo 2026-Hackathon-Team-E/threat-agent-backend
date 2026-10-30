@@ -13,10 +13,10 @@ from app.types import Dep, Service
 SBOM_DIR = Path(__file__).resolve().parent.parent / "sbom"
 WORKSPACE_DIR = Path(__file__).resolve().parent.parent / "workspace"
 
-# requirements.txt: name==version 줄만 매칭 (주석 및 >=, ~= 등 제외)
-REQ_LINE_RE = re.compile(r"^\s*([A-Za-z0-9_.\-]+)==([^\s#]+)")
+# requirements.txt: 줄 시작 공백([ \t]*) 후 name==version 형태만 매칭
+REQ_LINE_RE = re.compile(r"^[ \t]*([A-Za-z0-9_.\-]+)==([^\s#]+)")
 
-# pom.xml: <dependency>...</dependency> 블록만 추출 (프로젝트 자체 <version> 제외)
+# pom.xml: <dependency>...</dependency> 블록 내부만 추출 (프로젝트 자체 <version> 제외)
 DEP_BLOCK_RE = re.compile(r"<dependency>(.*?)</dependency>", re.DOTALL)
 GROUP_RE = re.compile(r"<groupId>\s*([^<\s]+)\s*</groupId>")
 ARTIFACT_RE = re.compile(r"<artifactId>\s*([^<\s]+)\s*</artifactId>")
@@ -39,6 +39,7 @@ def parse_manifest(fname: str, text: str) -> list[Dep]:
                     "ecosystem": "PyPI",
                     "name": m.group(1),
                     "version": m.group(2),
+                    "source": None,
                 })
 
     elif base_fname == "pom.xml":
@@ -51,6 +52,7 @@ def parse_manifest(fname: str, text: str) -> list[Dep]:
                     "ecosystem": "Maven",
                     "name": f"{g.group(1)}:{a.group(1)}",
                     "version": v.group(1),
+                    "source": None,
                 })
 
     return deps
@@ -86,7 +88,6 @@ def _build_service(svc_meta: dict, sbom_root: Path) -> Service:
     deps: list[Dep] = []
 
     for fname in manifests:
-        # 기본 SBOM_DIR를 사용할 때는 active_path() 호출, 커스텀 services_dir일 때는 워크스페이스 우선 확인 후 해당 경로 사용
         if sbom_root == SBOM_DIR:
             path = active_path(name, fname)
         else:
@@ -104,7 +105,6 @@ def _build_service(svc_meta: dict, sbom_root: Path) -> Service:
                     "source": fname,
                 })
 
-    # services.json에 정의된 매니페스트 없는 의존성(source: null, 예: npm lodash) 병합
     for static_dep in svc_meta.get("deps", []):
         if static_dep.get("source") is None:
             deps.append({
@@ -131,9 +131,9 @@ def load_all(services_dir: Path | None = None) -> dict[str, Service]:
     }
 
 
-def load_one(name: str) -> Service:
+def load_one(name: str, services_dir: Path | None = None) -> Service:
     """없는 서비스면 KeyError."""
-    sbom_root, services_meta = _read_services_meta(SBOM_DIR)
+    sbom_root, services_meta = _read_services_meta(services_dir)
     svc_meta = next((s for s in services_meta if s["name"] == name), None)
     if svc_meta is None:
         raise KeyError(f"Service '{name}' not found.")

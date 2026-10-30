@@ -8,8 +8,8 @@ import difflib
 import re
 from pathlib import Path
 
-from app.sbom import DEP_BLOCK_RE, WORKSPACE_DIR, active_path
-from app.types import Dep, Remediation, Service, ThreatCard
+from app import sbom
+from app.types import Card, Dep, Remediation, Service
 
 
 def bump_manifest(fname: str, text: str, name: str, fixed: str) -> str:
@@ -18,10 +18,10 @@ def bump_manifest(fname: str, text: str, name: str, fixed: str) -> str:
 
     if base_fname == "requirements.txt":
         pattern = re.compile(
-            rf"^(\s*{re.escape(name)}==)([^\s#]+)(.*)$",
+            rf"^([ \t]*{re.escape(name)}==)([^\s#]+)([^\r\n]*)$",
             re.MULTILINE,
         )
-        return pattern.sub(rf"\g<1>{fixed}\g<3>", text)
+        return pattern.sub(lambda m: f"{m.group(1)}{fixed}{m.group(3)}", text)
 
     elif base_fname == "pom.xml" and ":" in name:
         group_id, artifact_id = name.split(":", 1)
@@ -33,13 +33,13 @@ def bump_manifest(fname: str, text: str, name: str, fixed: str) -> str:
             if has_g and has_a:
                 return re.sub(
                     r"(<version>\s*)[^<\s]+(\s*</version>)",
-                    rf"\g<1>{fixed}\g<2>",
+                    lambda m: f"{m.group(1)}{fixed}{m.group(2)}",
                     block,
                     count=1,
                 )
             return block
 
-        return DEP_BLOCK_RE.sub(_replace_dep, text)
+        return sbom.DEP_BLOCK_RE.sub(_replace_dep, text)
 
     return text
 
@@ -47,7 +47,7 @@ def bump_manifest(fname: str, text: str, name: str, fixed: str) -> str:
 def propose(
     svc: Service,
     dep: Dep,
-    card: ThreatCard,
+    card: Card,
     fixed: str | None,
     workspace: Path | None = None,
 ) -> Remediation:
@@ -60,7 +60,7 @@ def propose(
     source = dep.get("source")
     workaround_msg = (card or {}).get("workaround") or ""
 
-    # 1. source가 없으면 manual
+    # 1. source가 없으면 manual (매니페스트 없는 의존성)
     if not source:
         return {
             "kind": "manual",
@@ -77,7 +77,7 @@ def propose(
         }
 
     # 3. 패치 버전이 있으면 workspace/<서비스>/에 사본 저장 및 unified diff 생성
-    ws_root = Path(workspace) if workspace is not None else WORKSPACE_DIR
+    ws_root = Path(workspace) if workspace is not None else sbom.WORKSPACE_DIR
 
     manifest_paths = svc.get("manifest_paths") or {}
     ws_candidate = ws_root / svc_name / source
@@ -86,7 +86,7 @@ def propose(
     elif source in manifest_paths and Path(manifest_paths[source]).exists():
         src_path = Path(manifest_paths[source])
     else:
-        src_path = active_path(svc_name, source)
+        src_path = sbom.active_path(svc_name, source)
 
     old_text = src_path.read_text(encoding="utf-8")
     new_text = bump_manifest(source, old_text, dep_name, fixed)
