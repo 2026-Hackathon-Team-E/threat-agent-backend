@@ -15,7 +15,7 @@ import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from app import card_view, config, pipeline, sbom
+from app import card_view, config, pipeline, sbom, translate
 from app.collectors import github, kev, news
 from app.store import Store
 from app.types import Event, Service
@@ -224,11 +224,27 @@ def list_cards():
 
 
 @app.get("/cards/{key}")
-def get_card(key: str):
+async def get_card(key: str):
     c = S.store.get_card(key)
     if not c:
         raise HTTPException(404, f"카드 없음: {key}")
-    return c
+    out = dict(c)
+    out["description_ko"] = await _description_ko(key, c.get("summary") or "")
+    return out
+
+
+async def _description_ko(key: str, text: str) -> str | None:
+    """설명의 한국어 요약. 한 번 만든 결과는 저장해서 재사용한다. Ollama가 없으면 None."""
+    cache_key = f"ko_desc:{key}"
+    cached = S.store.get(cache_key)
+    if cached:
+        return cached
+    if not config.OLLAMA_URL or not text.strip():
+        return None
+    ko = await translate.translate_ko(S.http, text, config.OLLAMA_URL, config.OLLAMA_MODEL)
+    if ko:
+        S.store.set(cache_key, ko)
+    return ko
 
 
 @app.get("/impacts")
