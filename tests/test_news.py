@@ -150,3 +150,18 @@ async def test_event_fields_match_contract():
     assert ev["fields"]["title"].startswith("Backdoor")
     assert "summary" in ev["fields"]
     assert ev["fields"]["workaround"] is None  # 키 없으면 임시 조치는 비어 있음
+
+
+@arun
+async def test_emit_failure_for_one_entry_does_not_stop_others():
+    http = FakeHttp({FEEDS[0]: FakeResponse(_sample())})
+    calls = []
+
+    async def flaky_emit(ev):
+        calls.append(ev["ids"])
+        if len(calls) == 1:
+            raise RuntimeError("queue full")
+
+    await news.poll(http, FakeState(), flaky_emit, 365 * 30, FEEDS, None, "claude-haiku-5-5")
+    # CVE 기사 2건을 모두 시도해야 한다 (첫 건 실패가 둘째 건을 막지 않음)
+    assert len(calls) == 2

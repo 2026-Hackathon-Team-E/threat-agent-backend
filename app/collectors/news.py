@@ -75,16 +75,19 @@ async def poll(
                 continue
 
             info = await llm_extract(http, text, llm_key, llm_model)
-            await emit(
-                {
-                    "source": f"뉴스:{src}",
-                    "kind": "news",
-                    "ids": cves,
-                    "fields": {
-                        "title": title,
-                        "summary": summary,
-                        "workaround": info.get("workaround") or None,
-                    },
-                }
-            )
+            event = {
+                "source": f"뉴스:{src}",
+                "kind": "news",
+                "ids": cves,
+                "fields": {
+                    "title": title,
+                    "summary": summary,
+                    "workaround": info.get("workaround") or None,
+                },
+            }
+            try:
+                await emit(event)
+            except Exception as exc:  # noqa: BLE001
+                # 한 기사의 emit 실패가 나머지 기사 처리를 막지 않도록 한다
+                log.warning("뉴스 이벤트 전달 실패 %s: %r", link, exc)
     state.set("first_run:news", "done")
