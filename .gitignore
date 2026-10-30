@@ -1,0 +1,16 @@
+# 가상환경·캐시
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# 런타임 산출물 (실행 시 생성)
+data/
+workspace/
+
+# 비밀값
+.env
+
+# 도구 상태
+.omc/
+.claude/settings.local.json

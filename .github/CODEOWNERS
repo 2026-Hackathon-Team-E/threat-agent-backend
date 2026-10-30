@@ -1,0 +1,54 @@
+# 기본 리뷰어 (리드)
+*                                   @redsun2
+
+# A. KEV·GitHub 수집
+app/collectors/kev.py               @eddieyee100
+app/collectors/github.py            @eddieyee100
+tests/test_collectors_kev.py        @eddieyee100
+tests/test_collectors_github.py     @eddieyee100
+tests/fixtures/kev_*                @eddieyee100
+tests/fixtures/github_*             @eddieyee100
+
+# B. 뉴스·외부 보강
+app/collectors/news.py              @kmssss56
+app/enrich.py                       @kmssss56
+tests/test_news.py                  @kmssss56
+tests/test_enrich.py                @kmssss56
+tests/fixtures/news_*               @kmssss56
+tests/fixtures/osv_*                @kmssss56
+tests/fixtures/epss_*               @kmssss56
+
+# C. 판단 로직
+app/versions.py                     @marineusus
+app/matcher.py                      @marineusus
+app/priority.py                     @marineusus
+tests/test_versions.py              @marineusus
+tests/test_matcher.py               @marineusus
+tests/test_priority.py              @marineusus
+
+# D. 파이프라인·저장·API (리드 겸임)
+app/main.py                         @redsun2
+app/config.py                       @redsun2
+app/store.py                        @redsun2
+app/pipeline.py                     @redsun2
+tests/conftest.py                   @redsun2
+tests/test_store.py                 @redsun2
+tests/test_pipeline.py              @redsun2
+docs/API.md                         @redsun2
+
+# E. SBOM·수정
+app/sbom.py                         @soobin7131
+app/remediate.py                    @soobin7131
+sbom/                               @soobin7131
+tests/test_sbom.py                  @soobin7131
+tests/test_remediate.py             @soobin7131
+
+# 공유 문서·설정 (계약 변경은 전원 리뷰가 필요하므로 리드가 모든 owner를 요청)
+docs/CONTRACT.md                    @redsun2 @kmssss56 @eddieyee100 @marineusus @soobin7131 @tmdtndks
+CLAUDE.md                           @redsun2
+docs/ROLES.md                       @redsun2
+docs/ARCHITECTURE.md                @redsun2
+pyproject.toml                      @redsun2
+.github/                            @redsun2
+
+tests/test_smoke.py                  @redsun2

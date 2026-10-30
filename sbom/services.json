@@ -1,0 +1,12 @@
+{
+  "payment-api": {
+    "env": "prod",
+    "internet_exposed": true,
+    "manifests": ["requirements.txt", "pom.xml"]
+  },
+  "internal-report": {
+    "env": "dev",
+    "internet_exposed": false,
+    "manifests": ["pom.xml"]
+  }
+}
