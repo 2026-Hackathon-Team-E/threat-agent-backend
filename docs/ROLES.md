@@ -9,30 +9,32 @@
 | A. KEV·GitHub 수집 | eddieyee100 | backend | `collectors/kev.py`, `collectors/github.py` |
 | B. 뉴스·외부 보강 | kmssss56 | backend | `collectors/news.py`, `enrich.py` |
 | C. 판단 로직 | marineusus | backend | `versions.py`, `matcher.py`, `priority.py` |
-| D. 파이프라인·저장·API | redsun2 | backend | `main.py`, `pipeline.py`, `store.py`, `config.py`, `docs/API.md` |
+| D. 파이프라인·저장·API | redsun2 | backend | `main.py`, `pipeline.py`, `store.py`, `config.py`, `types.py`, `docs/API.md` |
 | E. SBOM·수정 | soobin7131 | backend | `sbom.py`, `remediate.py`, `sbom/` |
 | F. 프론트엔드 | tmdtndks | frontend | `index.html`, `src/` |
 
-## 의존 순서
+## 의존 관계 (v0.2: 역할 간 import 없음)
+
+- 역할 간에는 **import 의존이 없다.** 공유하는 것은 `app/types.py`(타입)와 `docs/CONTRACT.md` 8장(함수 시그니처)뿐이다.
+- A(KEV·GitHub), B(뉴스·보강), C(판단), E(SBOM·수정)는 **지금 바로 동시에 시작한다.** 각자 시그니처대로 스텁을 구현하고 샘플 fixture로 테스트한다.
+- D(파이프라인·API)만 C·E·B의 함수를 호출한다. D는 시그니처 기준으로 호출 코드를 먼저 짜고, 상대 구현이 올라오면 연결만 확인하면 된다.
+- F(프론트)는 `tests/fixtures/`와 `docs/API.md`만 보고 시작한다. 백엔드 구현을 기다리지 않는다.
 
 ```
-C (판단 순수 함수) ──┐
-E (SBOM·수정)  ──────┤
-A (KEV·GitHub 수집) ─┼──▶ D (파이프라인·API 통합) ──▶ F (프론트가 API 소비)
-B (뉴스·보강)    ────┘
+A ──┐
+B ──┤
+C ──┼──(시그니처만)──▶ D (통합)
+E ──┘
+F  (API 명세와 fixture만 사용, 독립)
 ```
-
-- C, E, A, B는 서로 파일이 겹치지 않으므로 **동시에** 시작한다. 입출력은 `CONTRACT.md`로 맞춘다.
-- D는 C·E의 함수 시그니처가 정해지면 시작한다. 처음에는 `pipeline.py`에서 함수 이름만 맞추고 본문을 채운다.
-- F는 `docs/API.md`가 확정되면 바로 시작한다. 처음에는 `tests/fixtures/` 샘플 JSON으로 화면을 만든다.
 
 ## 역할별 상세
 
 ### A. KEV·GitHub 수집 (eddieyee100)
 
 - 담당 파일
-  - `app/collectors/kev.py`: `kev_event(v)`, `poll(http, store, emit)`
-  - `app/collectors/github.py`: `advisory_event(a, source)`, `advisory_from_webhook(payload)`, `verify_signature(body, header, secret)`, `poll(http, store, emit)`
+  - `app/collectors/kev.py`: `kev_event(v)`, `poll(http, state, emit, lookback_days)`
+  - `app/collectors/github.py`: `gh_interval`, `advisory_event(a, source)`, `advisory_from_webhook(payload)`, `verify_signature(body, header, secret)`, `poll(http, state, emit, lookback_days, token)`
   - `tests/test_collectors_kev.py`, `tests/test_collectors_github.py`
   - `tests/fixtures/kev_sample.json`, `tests/fixtures/github_advisories_sample.json`
 - 해야 할 일
@@ -40,24 +42,24 @@ B (뉴스·보강)    ────┘
   - GitHub Advisory API를 폴링한다. 토큰이 있으면 헤더에 넣는다.
   - GitHub `security_advisory` 웹훅 페이로드를 같은 이벤트 형태로 바꾼다.
   - 서명 검증 함수는 시크릿이 없으면 항상 통과가 아니라 "검증 생략"을 명시적 값으로 반환한다.
-  - GitHub 범위 문자열 `">= a, < b"` 변환은 `versions.gh_interval`을 쓴다(C 담당 함수). C가 아직 없으면 시그니처만 맞춰 두고 테스트는 C 머지 후 통과시킨다.
+  - GitHub 범위 문자열 `">= a, < b"` → Interval 변환은 이 파일 안의 `gh_interval`로 한다(외부 의존 없음).
 - 완료 기준
   - 샘플 응답으로 이벤트가 계약(`CONTRACT.md` 1·2장)과 일치한다.
-  - 같은 항목을 두 번 폴링해도 이벤트가 한 번만 나온다(`store.mark_seen` 사용 확인).
+- 같은 항목을 두 번 폴링해도 이벤트가 한 번만 나온다(`state.mark_seen` 사용 확인, `state`는 테스트에서 가짜 객체로 주입).
   - 서명 검증 실패 케이스 테스트가 있다.
 
 ### B. 뉴스·외부 보강 (kmssss56)
 
 - 담당 파일
-  - `app/collectors/news.py`: `poll(http, store, emit)`, CVE 정규식 추출
-  - `app/enrich.py`: `osv(http, vid)`, `epss(http, cve)`, `llm_extract(http, text)`
+  - `app/collectors/news.py`: `extract_cves(text)`, `poll(http, state, emit, lookback_days, feeds, llm_key, llm_model)`
+  - `app/enrich.py`: `osv_intervals(entry)`, `osv(http, vid)`, `epss(http, cve)`, `llm_extract(http, text, api_key, model)`
   - `tests/test_news.py`, `tests/test_enrich.py`
   - `tests/fixtures/news_feed_sample.xml`, `tests/fixtures/osv_sample.json`, `tests/fixtures/epss_sample.json`
 - 해야 할 일
   - RSS 3개(CISA 권고, The Hacker News, GitHub 보안 블로그)를 폴링한다. 제목과 요약에서 CVE만 정규식으로 뽑는다.
   - CVE가 있는 기사만 이벤트로 낸다. 임시 조치와 제품명은 LLM으로 추출한다.
   - LLM 출력은 JSON만 허용하고, 파싱 실패하면 빈 dict를 돌려준다. 키가 없으면 LLM을 호출하지 않는다.
-  - OSV 응답은 `versions.osv_intervals`(C 담당)로 변환한다.
+- OSV 응답 → Interval 변환은 `app/enrich.py`의 `osv_intervals`로 한다(외부 의존 없음).
   - EPSS 응답에서 점수만 꺼낸다.
 - 완료 기준
   - 키 없이도 전체 테스트가 통과한다(LLM 테스트는 모킹).
@@ -66,7 +68,7 @@ B (뉴스·보강)    ────┘
 ### C. 판단 로직 (marineusus)
 
 - 담당 파일
-  - `app/versions.py`: `vkey`, `in_interval`, `gh_interval`, `osv_intervals`, `best_fix`
+  - `app/versions.py`: `vkey`, `in_interval`, `best_fix` (범위 변환 함수는 A·B 파일에 있음)
   - `app/matcher.py`: `match(dep, card)`, `fix_for(dep, affected)`, 이름 정규화
   - `app/priority.py`: `score(card, svc)`
   - `tests/test_versions.py`, `tests/test_matcher.py`, `tests/test_priority.py`

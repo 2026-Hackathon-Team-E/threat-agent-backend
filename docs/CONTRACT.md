@@ -138,6 +138,38 @@
 3. 그 외 → `보통`
 4. 같은 등급 안에서 `rank` 내림차순(EPSS, CVSS)으로 정렬
 
+## 8. 모듈 인터페이스 (의존 없이 개발하는 규칙)
+
+### 8.1 규칙
+- 모든 공유 타입은 `app/types.py`에만 있다. 이 파일은 타입만 두고 로직을 넣지 않는다.
+- 역할 모듈은 `app/types.py`와 표준 라이브러리 외에는 **다른 역할의 모듈을 import하지 않는다.**
+  - 예외: D(`pipeline.py`)는 C·E·B의 공개 함수를 호출한다. 호출은 아래 시그니처만 본다.
+- 설정 상수(URL 등)는 모듈 안에 둔다. `config.py`는 D만 쓰고, 수집기에는 값을 인자로 넘긴다.
+- 상태 저장은 `State` 프로토콜(`get`, `set`, `mark_seen`)로 주입받는다. 테스트에서는 dict 기반 가짜 객체를 쓴다.
+- 함수 시그니처를 바꾸려면 이 문서와 `app/types.py` 변경을 PR 하나로 올리고 전원 리뷰를 받는다.
+
+### 8.2 공개 함수 시그니처
+
+| 모듈 | 담당 | 공개 함수 | 의존 |
+|---|---|---|---|
+| `app/versions.py` | C | `vkey(v) -> tuple`, `in_interval(v, iv) -> bool`, `best_fix(installed, fixed_versions, intervals) -> str \| None` | 없음 |
+| `app/matcher.py` | C | `match(dep, card) -> Affected \| None`, `fix_for(dep, affected) -> str \| None` | versions (같은 담당) |
+| `app/priority.py` | C | `score(card, svc) -> Priority` | 없음 |
+| `app/collectors/kev.py` | A | `kev_event(v) -> Event`, `async poll(http, state, emit, lookback_days)` | 없음 |
+| `app/collectors/github.py` | A | `gh_interval(spec) -> Interval`, `advisory_event(a, source) -> Event`, `advisory_from_webhook(payload) -> Event`, `verify_signature(body: bytes, header, secret) -> bool`, `async poll(http, state, emit, lookback_days, token)` | 없음 |
+| `app/collectors/news.py` | B | `extract_cves(text) -> list[str]`, `async poll(http, state, emit, lookback_days, feeds, llm_key, llm_model)` | enrich (같은 담당) |
+| `app/enrich.py` | B | `osv_intervals(entry) -> list[Interval]`, `async osv(http, vid) -> list[Affected]`, `async epss(http, cve) -> float \| None`, `async llm_extract(http, text, api_key, model) -> dict` | 없음 |
+| `app/sbom.py` | E | `parse_manifest(fname, text) -> list[Dep]`, `active_path(name, fname) -> Path`, `load_all(services_dir=None) -> dict[str, Service]`, `load_one(name) -> Service` | 없음 |
+| `app/remediate.py` | E | `bump_manifest(fname, text, name, fixed) -> str`, `propose(svc, dep, card, fixed, workspace) -> Remediation` | sbom (같은 담당) |
+| `app/store.py` | D | `class Store` (State 구현 + 카드·영향 카드 메서드) | 없음 |
+| `app/pipeline.py` | D | `async handle_event(ev, store, http, services, workspace)`, `scan(card, store, services)`, `act(imp, store, services, workspace)`, `async on_deploy(name, store, services, workspace)` | enrich, matcher, priority, remediate, sbom |
+| `app/main.py` | D | FastAPI `app` | 모든 수집기 poll (연결만) |
+
+### 8.3 이벤트 흐름 책임
+- 수집기(A, B)는 `Event`만 `emit`한다. OSV·EPSS 보강은 **파이프라인(D)이** `enrich`를 호출해 붙인다. 수집기는 보강을 직접 하지 않는다.
+- 판단(C)과 수정(E)은 파이프라인이 호출하는 순수 함수다. 큐나 저장소에 접근하지 않는다.
+
 ## 7. 변경 이력
 
 - v0.1: 최초 작성 (프로토타입 기준)
+- v0.2: 8장 모듈 인터페이스 추가, 역할 간 import 제거 (types.py 도입)

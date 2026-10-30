@@ -54,6 +54,9 @@ uv run uvicorn app.main:app --reload --port 8000
 - 비밀값(API 키, 웹훅 시크릿)은 코드와 커밋에 넣지 않는다. `.env`로 관리하고 `.env.example`만 커밋한다.
 - `sbom/` 원본은 수정하지 않는다. 수정 결과는 `workspace/`에만 쓴다.
 
+- 역할 모듈은 `app/types.py`와 표준 라이브러리 외에 다른 역할 모듈을 import하지 않는다 (예외: D의 `pipeline.py`가 공개 함수만 호출). 자세한 시그니처는 `docs/CONTRACT.md` 8장.
+- 수집기(A, B)는 `config.py`를 import하지 않는다. 설정값은 인자로 받는다.
+
 ## 6. Git과 PR 규칙
 
 - 기본 브랜치 `main`에 직접 커밋하지 않는다.
