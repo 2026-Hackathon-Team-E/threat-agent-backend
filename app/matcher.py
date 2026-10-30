@@ -17,6 +17,9 @@ def _normalize_name(name: str, ecosystem: str) -> str:
     return name.lower().replace("_", "-") if ecosystem == "PyPI" else name
 
 
+# [계획, 미구현] 제품 연결 단계: LLM이 기사 속 제품명(예: "Apache Log4j")을
+# SBOM의 패키지(예: log4j-core)에 대응하는 후보로 제안하고, 여기서 SBOM 존재 여부와
+# 버전 범위를 코드로 다시 확인한다. 모델은 판단하지 않고 후보만 낸다. 현재는 미구현.
 def match(dep: Dep, card: Card) -> Affected | None:
     """카드의 affected 중 dep과 맞고 설치 버전이 취약 구간에 드는 항목. 없으면 None.
 
