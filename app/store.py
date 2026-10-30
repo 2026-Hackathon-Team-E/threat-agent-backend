@@ -89,7 +89,7 @@ class Store:
         self._exec("DELETE FROM cards WHERE key = ?", (key,))
         self._exec("DELETE FROM alias WHERE card_key = ?", (key,))
         self._exec("DELETE FROM impacts WHERE json_extract(data, '$.card') = ?", (key,))
-        self._exec("DELETE FROM meta WHERE key = ?", (f"ko_desc:{key}",))
+        self._exec("DELETE FROM meta WHERE key IN (?, ?)", (f"ko_desc:{key}", f"ko_title:{key}"))
 
     def all_cards(self) -> list[Card]:
         return [json.loads(r[0]) for r in self._rows("SELECT data FROM cards ORDER BY key")]
