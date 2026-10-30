@@ -7,8 +7,10 @@ from __future__ import annotations
 import httpx
 
 PROMPT = (
-    "다음은 보안 취약점 설명이다. 한국어로 2~3문장으로 쉽게 요약하라. "
-    "CVE 번호, 패키지 이름, 제품 이름, 버전은 원문 그대로 쓴다. 요약문만 출력하고 다른 말은 쓰지 않는다.\n\n"
+    "다음은 보안 취약점 또는 보안 뉴스 원문이다. 한국어로 3~4문장을 쓴다. "
+    "1) 어떤 제품·기능에 무슨 취약점이 있는지, 2) 어떤 공격인지(누가·어떻게 악용하는지, 실제 공격이 확인됐는지), "
+    "3) 어떤 대상이 위험한지, 4) 조치 방법이 원문에 있으면 짧게 덧붙인다. "
+    "CVE 번호, 제품 이름, 패키지 이름, 버전, 회사 이름은 원문 그대로 쓴다. 원문에 없는 내용은 쓰지 않는다. 요약문만 출력한다.\n\n"
 )
 
 
@@ -23,7 +25,7 @@ async def translate_ko(
         "model": model,
         "prompt": PROMPT + body_text[:max_chars],
         "stream": False,
-        "options": {"temperature": 0.2, "num_predict": 220},
+        "options": {"temperature": 0.2, "num_predict": 320},
     }
     try:
         r = await http.post(f"{base_url.rstrip('/')}/api/generate", json=payload, timeout=120)

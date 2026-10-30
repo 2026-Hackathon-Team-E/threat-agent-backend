@@ -120,6 +120,17 @@ async def _headline_ko(key: str, c: dict) -> str | None:
     return ko
 
 
+async def _backfill_descriptions() -> None:
+    """서버 시작 뒤, 설명 요약이 없는 카드를 하나씩 채운다 (목록 카드에 맥락을 보여 주기 위해)."""
+    for c in S.store.all_cards():
+        if c.get("summary") and not S.store.get(f"ko_desc:{c['key']}"):
+            async with _ko_lock:
+                try:
+                    await _description_ko(c["key"], c["summary"])
+                except Exception:  # noqa: BLE001
+                    log.warning("설명 요약 실패: %s", c["key"])
+
+
 async def _backfill_headlines() -> None:
     """서버 시작 뒤, 제목이 아직 없는 뉴스 카드를 하나씩 채운다."""
     for c in S.store.all_cards():
@@ -182,6 +193,7 @@ async def lifespan(app: FastAPI):
     S.tasks.append(asyncio.create_task(worker()))
     S.tasks.append(asyncio.create_task(retention_loop()))
     S.tasks.append(asyncio.create_task(_backfill_headlines()))
+    S.tasks.append(asyncio.create_task(_backfill_descriptions()))
     if config.POLLERS_ENABLED:
         lb = config.LOOKBACK_DAYS
         S.tasks += [
@@ -285,6 +297,7 @@ def list_cards():
     out = []
     for c in S.store.all_cards():
         item = card_view.build(c, impacts, _CARD_LIST_FIELDS)
+        item["description_ko"] = S.store.get(f"ko_desc:{c['key']}")
         if c["key"].startswith("NEWS:"):
             item["headline_ko"] = S.store.get(f"ko_title:{c['key']}")
         out.append(item)
