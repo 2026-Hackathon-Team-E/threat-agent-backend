@@ -134,6 +134,7 @@ async def handle_event(
         return []
 
     card["version"] += 1
+    card["updated_at"] = time.time()
     store.put_card(card)
     log.info("카드 갱신: %s v%d kev=%s affected=%d", key, card["version"], card["kev"], len(card["affected"]))
 

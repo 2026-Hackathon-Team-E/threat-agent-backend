@@ -41,3 +41,10 @@ NEWS_FEEDS = [
 # 로컬 Ollama (한국어 설명 요약). 서버가 없으면 빈 값으로 두면 번역을 건너뛴다.
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
+
+# 정리·갱신 (retention 루프)
+RETENTION_INTERVAL = int(os.getenv("RETENTION_INTERVAL", "3600"))
+NEWS_RETENTION_DAYS = int(os.getenv("NEWS_RETENTION_DAYS", "30"))
+REFRESH_STALE_HOURS = int(os.getenv("REFRESH_STALE_HOURS", "6"))
+REFRESH_BATCH = int(os.getenv("REFRESH_BATCH", "20"))
+

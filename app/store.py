@@ -83,6 +83,14 @@ class Store:
         for i in [key, *card.get("ids", [])]:
             self.add_alias(i, key)
 
+    def delete_card(self, key: str) -> None:
+        """카드와 그 별칭, 영향 카드, 번역 캐시를 지운다."""
+        key = _norm(key)
+        self._exec("DELETE FROM cards WHERE key = ?", (key,))
+        self._exec("DELETE FROM alias WHERE card_key = ?", (key,))
+        self._exec("DELETE FROM impacts WHERE json_extract(data, '$.card') = ?", (key,))
+        self._exec("DELETE FROM meta WHERE key = ?", (f"ko_desc:{key}",))
+
     def all_cards(self) -> list[Card]:
         return [json.loads(r[0]) for r in self._rows("SELECT data FROM cards ORDER BY key")]
 
