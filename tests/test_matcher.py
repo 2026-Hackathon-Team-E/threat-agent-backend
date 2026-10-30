@@ -110,3 +110,8 @@ def test_match_and_fix_for_leave_nested_inputs_unchanged():
     assert fix_for(dep, first) == "2"
     assert match(dep, card) == first
     assert (dep, card) == before
+
+
+@pytest.mark.parametrize("version", ["", "unknown"])
+def test_unparseable_installed_version_is_skipped_not_crashing(version):
+    assert match(_dep(version=version), _card([_affected()])) is None

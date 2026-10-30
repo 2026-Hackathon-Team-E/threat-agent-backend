@@ -104,3 +104,33 @@ def test_best_fix_returns_none_when_no_safe_upgrade_exists(versions, intervals):
 
 def test_empty_intervals_do_not_disqualify_patch_candidates():
     assert best_fix("1", ["3", "2"], []) == "2"
+
+
+def test_best_fix_never_recommends_prerelease():
+    assert best_fix("1.0", ["2.0-rc1"], []) is None
+    assert best_fix("1.0", ["2.0-rc1", "2.0.1"], []) == "2.0.1"
+
+
+def test_best_fix_with_unparseable_installed_version_returns_none():
+    assert best_fix("", ["2.0"], []) is None
+    assert best_fix("unknown", ["2.0"], []) is None
+
+
+def test_is_pure_release():
+    from app.versions import is_pure_release
+
+    assert is_pure_release("2.15.0")
+    assert is_pure_release("v1")
+    assert not is_pure_release("2.0-rc1")
+    assert not is_pure_release("")
+
+
+def test_prerelease_before_fixed_release_is_still_vulnerable():
+    # 2.15.0-beta 는 2.15.0 보다 앞선 버전이므로 hi=2.15.0(미포함) 구간에 들어야 한다
+    iv = {"lo": None, "lo_inc": True, "hi": "2.15.0", "hi_inc": False}
+    assert in_interval("2.15.0-beta", iv)
+    assert not in_interval("2.15.0", iv)
+
+
+def test_best_fix_offers_release_over_installed_prerelease():
+    assert best_fix("2.15.0-beta", ["2.15.0"], []) == "2.15.0"

@@ -4,8 +4,12 @@
 """
 from __future__ import annotations
 
+import logging
+
 from app.types import Affected, Card, Dep
 from app.versions import best_fix, in_interval
+
+log = logging.getLogger("matcher")
 
 
 def _normalize_name(name: str, ecosystem: str) -> str:
@@ -14,7 +18,10 @@ def _normalize_name(name: str, ecosystem: str) -> str:
 
 
 def match(dep: Dep, card: Card) -> Affected | None:
-    """카드의 affected 중 dep과 맞고 설치 버전이 취약 구간에 드는 항목. 없으면 None."""
+    """카드의 affected 중 dep과 맞고 설치 버전이 취약 구간에 드는 항목. 없으면 None.
+
+    설치 버전이 숫자 릴리스가 아니면(예: 빈 문자열, 버전 미상) 판정할 수 없으므로 건너뛰고 경고만 남긴다.
+    """
     ecosystem = dep["ecosystem"]
     name = _normalize_name(dep["name"], ecosystem)
     for affected in card["affected"]:
@@ -22,8 +29,12 @@ def match(dep: Dep, card: Card) -> Affected | None:
             continue
         if _normalize_name(affected["name"], ecosystem) != name:
             continue
-        if any(in_interval(dep["version"], iv) for iv in affected["intervals"]):
-            return affected
+        try:
+            if any(in_interval(dep["version"], iv) for iv in affected["intervals"]):
+                return affected
+        except ValueError:
+            log.warning("버전을 판정할 수 없어 건너뜀: %s %s@%r", ecosystem, dep["name"], dep["version"])
+            return None
     return None
 
 
