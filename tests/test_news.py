@@ -92,8 +92,21 @@ def test_extract_cves_empty_text():
     assert news.extract_cves(None) == []
 
 
+def test_is_security_news_keywords_english_and_korean():
+    assert news.is_security_news("Ransomware gang hits hospital")
+    assert news.is_security_news("새로운 보안 취약점 발견")
+    assert not news.is_security_news("Company announces quarterly earnings and new office")
+
+
+def test_news_id_is_stable_per_link_and_prefixed():
+    a = news.news_id("https://example.com/news/x")
+    assert a == news.news_id("https://example.com/news/x")
+    assert a != news.news_id("https://example.com/news/y")
+    assert a.startswith("NEWS:") and len(a) == len("NEWS:") + 12
+
+
 @arun
-async def test_poll_emits_only_entries_with_cve():
+async def test_poll_emits_cve_articles_and_security_news_without_cve():
     http = FakeHttp({FEEDS[0]: FakeResponse(_sample())})
     state = FakeState()
     events = await _run(http, state, lookback_days=365 * 30)  # 샘플의 2001년 기사까지 포함
@@ -102,7 +115,11 @@ async def test_poll_emits_only_entries_with_cve():
     assert ["CVE-2019-0001"] in ids
     assert all(e["kind"] == "news" for e in events)
     assert all(e["source"].startswith("뉴스:") for e in events)
-    assert len(events) == 2  # 'Quarterly threat report'는 CVE가 없어서 제외
+    # 'Quarterly threat report'는 CVE는 없지만 보안 키워드('vulnerability')가 있어서 NEWS: id로 수집된다
+    no_cve = [e for e in events if e["ids"][0].startswith("NEWS:")]
+    assert len(no_cve) == 1
+    assert no_cve[0]["fields"]["title"] == "Quarterly threat report"
+    assert len(events) == 3
 
 
 @arun
@@ -121,7 +138,7 @@ async def test_second_poll_does_not_emit_duplicates():
     state = FakeState()
     first = await _run(http, state, lookback_days=365 * 30)
     second = await _run(http, state, lookback_days=365 * 30)
-    assert len(first) == 2
+    assert len(first) == 3  # CVE 기사 2건 + CVE 없는 보안 기사 1건
     assert second == []
 
 
@@ -131,7 +148,7 @@ async def test_failed_feed_does_not_stop_other_feeds():
     http = FakeHttp({bad: httpx.ConnectError("down"), good: FakeResponse(_sample())})
     state = FakeState()
     events = await _run(http, state, lookback_days=365 * 30, feeds=[bad, good])
-    assert len(events) == 2
+    assert len(events) == 3
     assert http.calls == [bad, good]
 
 
@@ -163,5 +180,5 @@ async def test_emit_failure_for_one_entry_does_not_stop_others():
             raise RuntimeError("queue full")
 
     await news.poll(http, FakeState(), flaky_emit, 365 * 30, FEEDS, None, "claude-haiku-5-5")
-    # CVE 기사 2건을 모두 시도해야 한다 (첫 건 실패가 둘째 건을 막지 않음)
-    assert len(calls) == 2
+    # 보안 기사 3건(CVE 2건 + CVE 없는 1건)을 모두 시도해야 한다 (첫 건 실패가 나머지를 막지 않음)
+    assert len(calls) == 3
