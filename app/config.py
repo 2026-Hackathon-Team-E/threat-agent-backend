@@ -37,3 +37,7 @@ NEWS_FEEDS = [
     "https://krebsonsecurity.com/feed/",
     "https://www.php.net/feed.atom",  # PHP 공식 뉴스 (CVE 포함 기사만 수집됨)
 ]
+
+# 로컬 Ollama (한국어 설명 요약). 서버가 없으면 빈 값으로 두면 번역을 건너뛴다.
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
