@@ -31,4 +31,9 @@ NEWS_FEEDS = [
     "https://www.cisa.gov/cybersecurity-advisories/all.xml",
     "https://feeds.feedburner.com/TheHackersNews",
     "https://github.blog/category/security/feed/",
+    "https://www.bleepingcomputer.com/feed/",
+    "https://www.securityweek.com/feed/",
+    "https://www.theregister.com/security/headlines.atom",
+    "https://krebsonsecurity.com/feed/",
+    "https://www.php.net/feed.atom",  # PHP 공식 뉴스 (CVE 포함 기사만 수집됨)
 ]
