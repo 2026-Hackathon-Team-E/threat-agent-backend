@@ -24,6 +24,8 @@ WORKSPACE_DIR = BASE_DIR / "workspace"
 # 뒤따르는 환경 마커(; python_version ...)와 주석(#)은 버전에서 떼어낸다.
 REQ_LINE_RE = re.compile(r"^\s*([A-Za-z0-9_.\-]+)(?:\[[^\]]*\])?==([^\s#;]+)")
 PROP_RE = re.compile(r"\$\{([^}]+)\}")
+# remediate.py가 pom.xml의 <dependency> 블록을 바꿀 때 쓴다. 이름을 바꾸지 말 것.
+DEP_BLOCK_RE = re.compile(r"<dependency>(.*?)</dependency>", re.DOTALL)
 
 
 def _local(tag: str) -> str:
