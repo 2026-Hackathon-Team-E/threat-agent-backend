@@ -15,7 +15,7 @@ import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from app import card_view, config, pipeline, sbom, translate
+from app import card_view, config, pipeline, retention, sbom, translate
 from app.collectors import github, kev, news
 from app.store import Store
 from app.types import Event, Service
@@ -87,6 +87,63 @@ async def emit(ev: Event) -> None:
     await S.queue.put(ev)
 
 
+_ko_lock = asyncio.Semaphore(1)  # Ollama는 한 번에 한 건씩
+
+
+async def _prefetch_ko(key: str) -> None:
+    """새 카드의 설명(또는 뉴스 제목)을 미리 한국어로 바꿔 캐시에 넣는다. 실패해도 조용히 넘어간다."""
+    async with _ko_lock:
+        c = S.store.get_card(key)
+        if not c:
+            return
+        try:
+            if key.startswith("NEWS:"):
+                await _headline_ko(key, c)
+            elif c.get("summary"):
+                await _description_ko(key, c["summary"])
+        except Exception:  # noqa: BLE001
+            log.warning("한국어 요약 실패: %s", key)
+
+
+async def _headline_ko(key: str, c: dict) -> str | None:
+    """뉴스 카드의 한국어 한 줄 제목. 한 번 만든 것은 캐시에서 쓴다."""
+    cache_key = f"ko_title:{key}"
+    cached = S.store.get(cache_key)
+    if cached:
+        return cached
+    if not config.OLLAMA_URL:
+        return None
+    ko = await translate.headline_ko(S.http, c.get("title") or "", c.get("summary") or "",
+                                     config.OLLAMA_URL, config.OLLAMA_MODEL)
+    if ko:
+        S.store.set(cache_key, ko)
+    return ko
+
+
+async def _backfill_headlines() -> None:
+    """서버 시작 뒤, 제목이 아직 없는 뉴스 카드를 하나씩 채운다."""
+    for c in S.store.all_cards():
+        if c["key"].startswith("NEWS:") and not S.store.get(f"ko_title:{c['key']}"):
+            await _prefetch_ko(c["key"])
+
+
+async def retention_loop() -> None:
+    """주기적으로 오래된 뉴스 카드를 지우고, 미확정 카드를 다시 조회한다."""
+    while True:
+        await asyncio.sleep(config.RETENTION_INTERVAL)
+        try:
+            now = time.time()
+            cards = S.store.all_cards()
+            impact_keys = {i["card"] for i in S.store.all_impacts()}
+            for key in retention.expired_keys(cards, impact_keys, now, config.NEWS_RETENTION_DAYS):
+                S.store.delete_card(key)
+                log.info("오래된 뉴스 카드 삭제: %s", key)
+            for key in retention.refresh_keys(S.store.all_cards(), now, config.REFRESH_STALE_HOURS, config.REFRESH_BATCH):
+                await emit({"source": "정리·갱신", "kind": "refresh", "ids": [key], "fields": {}})
+        except Exception:  # noqa: BLE001
+            log.exception("정리·갱신 실패")
+
+
 async def worker() -> None:
     while True:
         ev = await S.queue.get()
@@ -97,6 +154,9 @@ async def worker() -> None:
                 await pipeline.on_deploy(ev["service"], S.store, S.services, config.WORKSPACE_DIR)
             else:
                 await pipeline.handle_event(ev, S.store, S.http, S.services, config.WORKSPACE_DIR)
+                key = S.store.find_card([str(i).upper() for i in (ev.get("ids") or [])])
+                if key:
+                    asyncio.create_task(_prefetch_ko(key))
         except Exception:  # noqa: BLE001 - 한 이벤트 실패가 워커를 죽이지 않게
             log.exception("이벤트 처리 실패: %s", ev.get("ids") or ev.get("service"))
         finally:
@@ -120,6 +180,8 @@ async def run_poller(name: str, interval: int, fn) -> None:
 async def lifespan(app: FastAPI):
     S.http = httpx.AsyncClient(timeout=20, follow_redirects=True)
     S.tasks.append(asyncio.create_task(worker()))
+    S.tasks.append(asyncio.create_task(retention_loop()))
+    S.tasks.append(asyncio.create_task(_backfill_headlines()))
     if config.POLLERS_ENABLED:
         lb = config.LOOKBACK_DAYS
         S.tasks += [
@@ -220,7 +282,13 @@ _CARD_LIST_FIELDS = ("key", "ids", "sources", "title", "kev", "ransomware", "eps
 @app.get("/cards")
 def list_cards():
     impacts = S.store.all_impacts()
-    return [card_view.build(c, impacts, _CARD_LIST_FIELDS) for c in S.store.all_cards()]
+    out = []
+    for c in S.store.all_cards():
+        item = card_view.build(c, impacts, _CARD_LIST_FIELDS)
+        if c["key"].startswith("NEWS:"):
+            item["headline_ko"] = S.store.get(f"ko_title:{c['key']}")
+        out.append(item)
+    return out
 
 
 @app.get("/cards/{key}")

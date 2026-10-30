@@ -36,3 +36,35 @@ async def translate_ko(
     except ValueError:
         return None
     return out or None
+
+
+HEADLINE_PROMPT = (
+    "다음은 보안 뉴스 기사 제목과 요약이다. 기사의 핵심을 한국어 제목 한 줄(25자 이내)로 쓴다. "
+    "회사명, 제품명, CVE 번호는 원문 그대로 쓴다. 예: '신한은행 고객정보 해킹 발생', '빗썸 거래소 취약점 발견'. "
+    "제목 한 줄만 출력한다.\n\n"
+)
+
+
+async def headline_ko(http: httpx.AsyncClient, title: str, summary: str, base_url: str, model: str) -> str | None:
+    """뉴스 기사 한 줄 한국어 제목. 실패하면 None."""
+    body_text = f"{title}\n{summary}".strip()
+    if not body_text:
+        return None
+    payload = {
+        "model": model,
+        "prompt": HEADLINE_PROMPT + body_text[:1000],
+        "stream": False,
+        "options": {"temperature": 0.2, "num_predict": 60},
+    }
+    try:
+        r = await http.post(f"{base_url.rstrip('/')}/api/generate", json=payload, timeout=120)
+    except httpx.HTTPError:
+        return None
+    if r.status_code != 200:
+        return None
+    try:
+        out = str(r.json().get("response", "")).strip().splitlines()[0].strip().strip('"\'')
+    except (ValueError, IndexError):
+        return None
+    return out[:60] or None
+
